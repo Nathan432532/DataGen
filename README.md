@@ -42,8 +42,36 @@ project-root
 | `fluvius_energy` | Fluvius Open Data | Parquet / JSON | `raw.raw_fluvius_energy` | `clean.clean_energy_hourly` |
 | `elia_generation` | ELIA Open Data API | JSON | `raw.raw_elia_generation` | `clean.clean_elia_generation` |
 | `energy_vlaanderen` | ELIA (solar ods032, wind ods031) | CSV | `raw.raw_vlaanderen_solar` / `raw.raw_vlaanderen_wind` | `clean.clean_solar_hourly` / `clean.clean_wind_hourly` |
+| `combined_energy` | Combines Vlaanderen + ELIA | Combined | — | `clean.clean_combined_energy` |
 
 Every pipeline follows: **extract → load_raw → validate → transform_clean**.
+
+### Combined Energy Pipeline
+
+The `combined_energy` DAG is a **complete end-to-end pipeline** that:
+1. **Extracts** fresh data from Vlaanderen and ELIA APIs
+2. **Transforms** all data through raw → clean layers
+3. **Combines** into a unified hourly aggregated table
+
+**Pipeline stages:**
+- Vlaanderen solar & wind (extract → load → validate → transform)
+- ELIA solar & wind (extract → load → validate → transform)
+- Combine all sources with hourly averaging
+
+All sources provide 15-minute data, which is aggregated to hourly averages.
+
+**Output table:** `clean.clean_combined_energy`
+
+**Columns:**
+- `tijd` — hourly timestamp
+- `energie_vlaanderen_zon_megawatt` — Vlaanderen solar (MW, Flanders)
+- `energie_vlaanderen_wind_megawatt` — Vlaanderen wind (MW, Flanders)
+- `elia_zon_megawatt` — ELIA solar forecast (MW, Flanders)
+- `elia_wind_megawatt` — ELIA wind forecast (MW, Flanders)
+
+**Running the pipeline:**
+- In Airflow UI: Enable and trigger `combined_energy` DAG
+- Standalone: `python combined_energy_script.py` (only combines existing data)
 
 ### Database layers
 

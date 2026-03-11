@@ -38,7 +38,12 @@ def _transform(raw_table: str, clean_table: str) -> None:
         df_clean = df_clean.rename(columns={ts_col: "timestamp"})
         df_clean = df_clean.dropna(subset=["timestamp"])
         df_clean = df_clean.sort_values("timestamp")
-        df_clean = df_clean.drop_duplicates(subset=["timestamp"], keep="last")
+        # Drop duplicates based on timestamp AND region (not just timestamp)
+        # to preserve data for different regions at the same time
+        if "region" in df_clean.columns:
+            df_clean = df_clean.drop_duplicates(subset=["timestamp", "region"], keep="last")
+        else:
+            df_clean = df_clean.drop_duplicates(subset=["timestamp"], keep="last")
     else:
         logger.warning("No timestamp column detected for %s", raw_table)
         df_clean["timestamp"] = pd.NaT

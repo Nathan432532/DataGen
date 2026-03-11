@@ -1,4 +1,4 @@
-"""Transform — clean ELIA generation data into the *clean* layer."""
+"""Transform — clean ELIA wind and solar forecast data into the *clean* layer."""
 
 import pandas as pd
 
@@ -7,15 +7,16 @@ from src.common.logging_config import setup_logging
 
 logger = setup_logging("elia.transform")
 
-CLEAN_TABLE = "clean_elia_generation"
+CLEAN_WIND_TABLE = "clean_elia_wind"
+CLEAN_SOLAR_TABLE = "clean_elia_solar"
 
 
-def transform_elia_to_clean() -> None:
-    """Read from ``raw.raw_elia_generation``, normalise, write to *clean*."""
+def _transform_elia_data(raw_table: str, clean_table: str, data_type: str) -> None:
+    """Generic transformation function for ELIA data."""
     engine = get_engine()
 
-    df = pd.read_sql("SELECT * FROM raw.raw_elia_generation", engine)
-    logger.info("Read %d rows from raw.raw_elia_generation", len(df))
+    df = pd.read_sql(f"SELECT * FROM raw.{raw_table}", engine)
+    logger.info("Read %d rows from raw.%s", len(df), raw_table)
     logger.info("Columns: %s", list(df.columns))
 
     # Drop metadata
@@ -30,15 +31,30 @@ def transform_elia_to_clean() -> None:
         df_clean = df_clean.rename(columns={ts_col: "timestamp"})
         df_clean = df_clean.dropna(subset=["timestamp"])
         df_clean = df_clean.sort_values("timestamp")
-        df_clean = df_clean.drop_duplicates(subset=["timestamp"], keep="last")
+        # Drop duplicates based on timestamp AND region (not just timestamp)
+        # to preserve data for different regions at the same time
+        if "region" in df_clean.columns:
+            df_clean = df_clean.drop_duplicates(subset=["timestamp", "region"], keep="last")
+        else:
+            df_clean = df_clean.drop_duplicates(subset=["timestamp"], keep="last")
     else:
-        logger.warning("No timestamp column detected — storing as-is")
+        logger.warning("No timestamp column detected for %s — storing as-is", data_type)
         df_clean["timestamp"] = pd.NaT
 
     df_clean = df_clean.dropna(how="all").reset_index(drop=True)
 
-    df_clean.to_sql(CLEAN_TABLE, engine, schema="clean", if_exists="replace", index=False)
-    logger.info("Wrote %d rows → clean.%s", len(df_clean), CLEAN_TABLE)
+    df_clean.to_sql(clean_table, engine, schema="clean", if_exists="replace", index=False)
+    logger.info("Wrote %d rows → clean.%s (%s)", len(df_clean), clean_table, data_type)
+
+
+def transform_elia_wind_to_clean() -> None:
+    """Read from ``raw.raw_elia_wind``, normalise, write to *clean*."""
+    _transform_elia_data("raw_elia_wind", CLEAN_WIND_TABLE, "wind")
+
+
+def transform_elia_solar_to_clean() -> None:
+    """Read from ``raw.raw_elia_solar``, normalise, write to *clean*."""
+    _transform_elia_data("raw_elia_solar", CLEAN_SOLAR_TABLE, "solar")
 
 
 def _detect_timestamp_col(df: pd.DataFrame) -> str | None:

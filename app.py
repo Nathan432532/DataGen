@@ -21,18 +21,14 @@ from src.common.validation import validate_table_exists, validate_row_count
 def main() -> None:
     print("=== Weather Antwerp Pipeline (standalone) ===")
 
-    # Extract
     df = extract_weather_data()
 
-    # Load → raw
     run_id = load_raw_weather(df)
 
-    # Validate
     validate_table_exists("raw", "raw_weather_antwerp")
     count = validate_row_count("raw", "raw_weather_antwerp")
     print(f"raw.raw_weather_antwerp → {count} rows")
 
-    # Transform → clean
     transform_weather_to_clean()
 
     print("=== Pipeline complete ===")
