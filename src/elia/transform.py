@@ -12,7 +12,10 @@ CLEAN_SOLAR_TABLE = "clean_elia_solar"
 
 
 def _transform_elia_data(raw_table: str, clean_table: str, data_type: str) -> None:
-    """Generic transformation function for ELIA data."""
+    """Generic transformation function for ELIA data.
+
+    Aggregates 15-minute raw data to hourly averages.
+    """
     engine = get_engine()
 
     df = pd.read_sql(f"SELECT * FROM raw.{raw_table}", engine)
@@ -34,7 +37,9 @@ def _transform_elia_data(raw_table: str, clean_table: str, data_type: str) -> No
         # Drop duplicates based on timestamp AND region (not just timestamp)
         # to preserve data for different regions at the same time
         if "region" in df_clean.columns:
-            df_clean = df_clean.drop_duplicates(subset=["timestamp", "region"], keep="last")
+            df_clean = df_clean.drop_duplicates(
+                subset=["timestamp", "region"], keep="last"
+            )
         else:
             df_clean = df_clean.drop_duplicates(subset=["timestamp"], keep="last")
     else:
@@ -43,7 +48,35 @@ def _transform_elia_data(raw_table: str, clean_table: str, data_type: str) -> No
 
     df_clean = df_clean.dropna(how="all").reset_index(drop=True)
 
-    df_clean.to_sql(clean_table, engine, schema="clean", if_exists="replace", index=False)
+    # Aggregate 15-minute data to hourly averages
+    # Find numeric columns (forecast/measured values)
+    numeric_cols = df_clean.select_dtypes(include=["number"]).columns.tolist()
+
+    if "timestamp" in df_clean.columns and numeric_cols:
+        logger.info(
+            "Aggregating 15-minute data to hourly (%d numeric columns)...",
+            len(numeric_cols),
+        )
+        df_clean["hour"] = df_clean["timestamp"].dt.floor("H")
+
+        group_cols = ["hour"]
+        if "region" in df_clean.columns:
+            group_cols.append("region")
+
+        agg_dict = {col: "mean" for col in numeric_cols}
+        hourly = df_clean.groupby(group_cols)[numeric_cols].agg(agg_dict).reset_index()
+        hourly = hourly.rename(columns={"hour": "timestamp"})
+
+        logger.info(
+            "Aggregated %d 15-min records → %d hourly records",
+            len(df_clean),
+            len(hourly),
+        )
+        df_clean = hourly
+
+    df_clean.to_sql(
+        clean_table, engine, schema="clean", if_exists="replace", index=False
+    )
     logger.info("Wrote %d rows → clean.%s (%s)", len(df_clean), clean_table, data_type)
 
 

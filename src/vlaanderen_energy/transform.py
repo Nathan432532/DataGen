@@ -1,4 +1,9 @@
-"""Transform — clean Vlaanderen solar/wind data into the *clean* layer."""
+"""Transform — clean Vlaanderen solar/wind data into the *clean* layer.
+
+The raw table contains a `datetime` column plus NIS-code columns (5-digit
+municipality codes) with MW values. This transform sums all NIS columns per
+timestamp and writes a slim two-column table to the clean layer.
+"""
 
 import pandas as pd
 
@@ -10,53 +15,54 @@ logger = setup_logging("vlaanderen_energy.transform")
 
 def transform_solar_to_clean() -> None:
     """Normalise ``raw.raw_vlaanderen_solar`` → ``clean.clean_solar_hourly``."""
-    _transform("raw_vlaanderen_solar", "clean_solar_hourly")
+    _transform("raw_vlaanderen_solar", "clean_solar_hourly", "vlaanderen_zon_mw")
 
 
 def transform_wind_to_clean() -> None:
     """Normalise ``raw.raw_vlaanderen_wind`` → ``clean.clean_wind_hourly``."""
-    _transform("raw_vlaanderen_wind", "clean_wind_hourly")
+    _transform("raw_vlaanderen_wind", "clean_wind_hourly", "vlaanderen_wind_mw")
 
 
-# ------------------------------------------------------------------
+# ---------------------------------------------------------------------------
 # Shared logic
-# ------------------------------------------------------------------
-def _transform(raw_table: str, clean_table: str) -> None:
+# ---------------------------------------------------------------------------
+
+def _transform(raw_table: str, clean_table: str, value_col: str) -> None:
     engine = get_engine()
 
     df = pd.read_sql(f"SELECT * FROM raw.{raw_table}", engine)
     logger.info("Read %d rows from raw.%s", len(df), raw_table)
-    logger.info("Columns: %s", list(df.columns))
 
-    meta = {"ingested_at", "source", "run_id"}
+    # Drop pipeline metadata columns
+    meta = {"ingested_at", "source", "run_id", "source_file_date"}
     data_cols = [c for c in df.columns if c not in meta]
-    df_clean = df[data_cols].copy()
+    df = df[data_cols].copy()
 
-    ts_col = _detect_timestamp_col(df_clean)
-    if ts_col:
-        df_clean[ts_col] = pd.to_datetime(df_clean[ts_col], errors="coerce")
-        df_clean = df_clean.rename(columns={ts_col: "timestamp"})
-        df_clean = df_clean.dropna(subset=["timestamp"])
-        df_clean = df_clean.sort_values("timestamp")
-        # Drop duplicates based on timestamp AND region (not just timestamp)
-        # to preserve data for different regions at the same time
-        if "region" in df_clean.columns:
-            df_clean = df_clean.drop_duplicates(subset=["timestamp", "region"], keep="last")
-        else:
-            df_clean = df_clean.drop_duplicates(subset=["timestamp"], keep="last")
-    else:
-        logger.warning("No timestamp column detected for %s", raw_table)
-        df_clean["timestamp"] = pd.NaT
+    # Identify the timestamp column
+    ts_col = next(
+        (c for c in df.columns if any(kw in c.lower() for kw in ("datetime", "timestamp", "date", "time"))),
+        None,
+    )
+    if ts_col is None:
+        raise ValueError(f"No timestamp column found in raw.{raw_table}")
 
-    df_clean = df_clean.dropna(how="all").reset_index(drop=True)
+    df[ts_col] = pd.to_datetime(df[ts_col], errors="coerce", utc=True)
+    df = df.dropna(subset=[ts_col])
+    df = df.rename(columns={ts_col: "datetime"})
 
-    df_clean.to_sql(clean_table, engine, schema="clean", if_exists="replace", index=False)
-    logger.info("Wrote %d rows → clean.%s", len(df_clean), clean_table)
+    # NIS-code columns are 5-digit numeric strings
+    nis_cols = [c for c in df.columns if c != "datetime" and c.isdigit() and len(c) == 5]
+    if not nis_cols:
+        raise ValueError(f"No NIS-code columns found in raw.{raw_table}")
 
+    logger.info("Summing %d NIS columns for %s", len(nis_cols), raw_table)
 
-def _detect_timestamp_col(df: pd.DataFrame) -> str | None:
-    keywords = ("datetime", "timestamp", "date", "time")
-    for col in df.columns:
-        if any(kw in col.lower() for kw in keywords):
-            return col
-    return None
+    df[nis_cols] = df[nis_cols].apply(pd.to_numeric, errors="coerce").fillna(0)
+    df[value_col] = df[nis_cols].sum(axis=1)
+
+    clean = df[["datetime", value_col]].copy()
+    clean = clean.sort_values("datetime").drop_duplicates(subset=["datetime"], keep="last")
+    clean = clean.reset_index(drop=True)
+
+    clean.to_sql(clean_table, engine, schema="clean", if_exists="replace", index=False)
+    logger.info("Wrote %d rows → clean.%s", len(clean), clean_table)

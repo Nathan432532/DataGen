@@ -13,12 +13,12 @@ logger = setup_logging("vlaanderen_energy.load")
 
 def load_raw_solar(df: pd.DataFrame, run_id: str | None = None) -> str:
     """Write solar data to ``raw.raw_vlaanderen_solar``."""
-    return _load(df, "raw_vlaanderen_solar", "elia_solar_ods032", run_id)
+    return _load(df, "raw_vlaanderen_solar", "netlify_realtime_solar", run_id)
 
 
 def load_raw_wind(df: pd.DataFrame, run_id: str | None = None) -> str:
     """Write wind data to ``raw.raw_vlaanderen_wind``."""
-    return _load(df, "raw_vlaanderen_wind", "elia_wind_ods031", run_id)
+    return _load(df, "raw_vlaanderen_wind", "netlify_realtime_wind", run_id)
 
 
 def _load(df: pd.DataFrame, table: str, source: str, run_id: str | None) -> str:

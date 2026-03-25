@@ -28,7 +28,8 @@ default_args = {
 def _extract_solar(**ctx):
     from src.vlaanderen_energy.extract import extract_solar_data
 
-    df = extract_solar_data()
+    ds = ctx["ds"]
+    df = extract_solar_data(start_date=ds, end_date=ds)
     df.to_parquet(SOLAR_TEMP, index=False)
     ctx["ti"].xcom_push(key="rows", value=len(df))
 
@@ -63,7 +64,8 @@ def _transform_solar(**ctx):
 def _extract_wind(**ctx):
     from src.vlaanderen_energy.extract import extract_wind_data
 
-    df = extract_wind_data()
+    ds = ctx["ds"]
+    df = extract_wind_data(start_date=ds, end_date=ds)
     df.to_parquet(WIND_TEMP, index=False)
     ctx["ti"].xcom_push(key="rows", value=len(df))
 

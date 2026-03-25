@@ -20,7 +20,7 @@ def load_raw_elia_wind(df: pd.DataFrame, run_id: str | None = None) -> str:
 
     df = df.copy()
     df["ingested_at"] = datetime.now(timezone.utc)
-    df["source"] = "elia_wind_ods086"
+    df["source"] = "elia_wind_ods031"
     df["run_id"] = run_id
 
     engine = get_engine()
@@ -35,7 +35,7 @@ def load_raw_elia_solar(df: pd.DataFrame, run_id: str | None = None) -> str:
 
     df = df.copy()
     df["ingested_at"] = datetime.now(timezone.utc)
-    df["source"] = "elia_solar_ods087"
+    df["source"] = "elia_solar_ods032"
     df["run_id"] = run_id
 
     engine = get_engine()

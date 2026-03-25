@@ -45,10 +45,11 @@ default_args = {
 # VLAANDEREN SOLAR — Task callables
 # ═══════════════════════════════════════════════════════════════════
 def _extract_vlaanderen_solar(**ctx):
-    """Extract Vlaanderen solar data from ELIA API."""
+    """Extract Vlaanderen solar data for the DAG execution date."""
     from src.vlaanderen_energy.extract import extract_solar_data
 
-    df = extract_solar_data()
+    ds = ctx["ds"]  # YYYY-MM-DD logical date
+    df = extract_solar_data(start_date=ds, end_date=ds)
     df.to_parquet(VLAANDEREN_SOLAR_TEMP, index=False)
     ctx["ti"].xcom_push(key="rows", value=len(df))
 
@@ -86,10 +87,11 @@ def _transform_vlaanderen_solar(**ctx):
 # VLAANDEREN WIND — Task callables
 # ═══════════════════════════════════════════════════════════════════
 def _extract_vlaanderen_wind(**ctx):
-    """Extract Vlaanderen wind data from ELIA API."""
+    """Extract Vlaanderen wind data for the DAG execution date."""
     from src.vlaanderen_energy.extract import extract_wind_data
 
-    df = extract_wind_data()
+    ds = ctx["ds"]
+    df = extract_wind_data(start_date=ds, end_date=ds)
     df.to_parquet(VLAANDEREN_WIND_TEMP, index=False)
     ctx["ti"].xcom_push(key="rows", value=len(df))
 
@@ -227,10 +229,10 @@ def _validate_combined(**ctx):
     validate_row_count("clean", "clean_combined_energy")
     validate_columns("clean", "clean_combined_energy", [
         "tijd",
-        "energie_vlaanderen_zon_megawatt",
-        "energie_vlaanderen_wind_megawatt",
-        "elia_zon_megawatt",
-        "elia_wind_megawatt"
+        "vlaanderen_zon_kwh",
+        "vlaanderen_wind_kwh",
+        "elia_zon_kwh",
+        "elia_wind_kwh",
     ])
 
 

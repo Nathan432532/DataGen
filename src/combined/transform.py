@@ -1,13 +1,15 @@
-"""Transform — combine energy production data from multiple sources into one table.
+"""Transform — combine Vlaanderen + ELIA energy data into a single hourly table.
 
-This script creates a unified hourly view of energy production combining:
-- Vlaanderen solar (Flanders)
-- Vlaanderen wind (Flanders)
-- ELIA solar (Flanders)
-- ELIA wind (Flanders)
+Reads from the four clean tables and joins them on hourly timestamp.
+Values are converted from MW to kWh (MW * 1000) before writing.
 
-All sources provide 15-minute resolution data, which is aggregated to hourly averages.
-Note: Using Flanders region for consistent data availability across all sources.
+Output table: clean.clean_combined_energy
+Columns:
+  - tijd               : hourly timestamp
+  - vlaanderen_zon_kwh : Vlaanderen solar in kWh
+  - vlaanderen_wind_kwh: Vlaanderen wind in kWh
+  - elia_zon_kwh       : ELIA solar forecast (Flanders) in kWh
+  - elia_wind_kwh      : ELIA wind forecast (Flanders) in kWh
 """
 
 import pandas as pd
@@ -18,149 +20,96 @@ from src.common.logging_config import setup_logging
 logger = setup_logging("combined.transform")
 
 CLEAN_TABLE = "clean_combined_energy"
+ELIA_REGION = "Flanders"
 
 
 def transform_combined_energy() -> None:
-    """
-    Combine energy production data from multiple sources into a single hourly table.
-
-    Output columns:
-    - tijd (timestamp): Hourly timestamp
-    - energie_vlaanderen_zon_megawatt: Vlaanderen solar production (Flanders)
-    - energie_vlaanderen_wind_megawatt: Vlaanderen wind production (Flanders)
-    - elia_zon_megawatt: ELIA solar forecast (Flanders)
-    - elia_wind_megawatt: ELIA wind forecast (Flanders)
-    """
     engine = get_engine()
 
-    # Use Flanders region for all sources (most consistent data availability)
-    region = 'Flanders'
+    # --- Vlaanderen solar ---------------------------------------------------
+    logger.info("Reading clean.clean_solar_hourly...")
+    df_vl_solar = pd.read_sql("SELECT datetime, vlaanderen_zon_mw FROM clean.clean_solar_hourly", engine)
+    df_vl_solar["datetime"] = pd.to_datetime(df_vl_solar["datetime"], errors="coerce", utc=True)
+    df_vl_solar = df_vl_solar.dropna(subset=["datetime"])
+    df_vl_solar["vlaanderen_zon_kwh"] = pd.to_numeric(df_vl_solar["vlaanderen_zon_mw"], errors="coerce") * 1000.0
+    df_vl_solar = df_vl_solar[["datetime", "vlaanderen_zon_kwh"]]
+    logger.info("Vlaanderen solar: %d rows", len(df_vl_solar))
 
-    # Fetch Vlaanderen solar (Flanders, measured)
-    logger.info(f"Fetching Vlaanderen solar data ({region})...")
-    df_vl_solar = pd.read_sql(f"""
-        SELECT
-            timestamp,
-            measured as value
-        FROM clean.clean_solar_hourly
-        WHERE region = '{region}'
-        AND measured IS NOT NULL
-    """, engine)
+    # --- Vlaanderen wind ----------------------------------------------------
+    logger.info("Reading clean.clean_wind_hourly...")
+    df_vl_wind = pd.read_sql("SELECT datetime, vlaanderen_wind_mw FROM clean.clean_wind_hourly", engine)
+    df_vl_wind["datetime"] = pd.to_datetime(df_vl_wind["datetime"], errors="coerce", utc=True)
+    df_vl_wind = df_vl_wind.dropna(subset=["datetime"])
+    df_vl_wind["vlaanderen_wind_kwh"] = pd.to_numeric(df_vl_wind["vlaanderen_wind_mw"], errors="coerce") * 1000.0
+    df_vl_wind = df_vl_wind[["datetime", "vlaanderen_wind_kwh"]]
+    logger.info("Vlaanderen wind: %d rows", len(df_vl_wind))
 
-    # Fetch Vlaanderen wind (Flanders, measured)
-    logger.info(f"Fetching Vlaanderen wind data ({region})...")
-    df_vl_wind = pd.read_sql(f"""
-        SELECT
-            timestamp,
-            measured as value
-        FROM clean.clean_wind_hourly
-        WHERE region = '{region}'
-        AND measured IS NOT NULL
-    """, engine)
+    # --- ELIA solar (Flanders, hourly avg from clean table) -----------------
+    logger.info("Reading clean.clean_elia_solar...")
+    df_elia_solar = _read_elia_clean("clean_elia_solar", "elia_zon_kwh", engine)
 
-    # Fetch ELIA solar (Flanders, forecast)
-    logger.info(f"Fetching ELIA solar data ({region})...")
-    df_elia_solar = pd.read_sql(f"""
-        SELECT
-            timestamp,
-            mostrecentforecast as value
-        FROM clean.clean_elia_solar
-        WHERE region = '{region}'
-        AND mostrecentforecast IS NOT NULL
-    """, engine)
+    # --- ELIA wind (Flanders, hourly avg from clean table) ------------------
+    logger.info("Reading clean.clean_elia_wind...")
+    df_elia_wind = _read_elia_clean("clean_elia_wind", "elia_wind_kwh", engine)
 
-    # Fetch ELIA wind (Flanders, forecast)
-    logger.info(f"Fetching ELIA wind data ({region})...")
-    df_elia_wind = pd.read_sql(f"""
-        SELECT
-            timestamp,
-            mostrecentforecast as value
-        FROM clean.clean_elia_wind
-        WHERE region = '{region}'
-        AND mostrecentforecast IS NOT NULL
-    """, engine)
-
-    # Convert timestamps to datetime
-    for df in [df_vl_solar, df_vl_wind, df_elia_solar, df_elia_wind]:
-        if not df.empty:
-            df['timestamp'] = pd.to_datetime(df['timestamp'])
-
-    # Aggregate to hourly (average of 15-minute intervals)
-    logger.info("Aggregating to hourly resolution...")
-
-    def aggregate_to_hourly(df: pd.DataFrame, name: str) -> pd.DataFrame:
-        if df.empty:
-            logger.warning(f"No data for {name}")
-            return pd.DataFrame(columns=['timestamp', name])
-
-        df['hour'] = df['timestamp'].dt.floor('H')
-        hourly = df.groupby('hour')['value'].mean().reset_index()
-        hourly.columns = ['timestamp', name]
-        logger.info(f"{name}: {len(df)} 15-min records → {len(hourly)} hourly records")
-        return hourly
-
-    df_vl_solar_hourly = aggregate_to_hourly(df_vl_solar, 'energie_vlaanderen_zon_megawatt')
-    df_vl_wind_hourly = aggregate_to_hourly(df_vl_wind, 'energie_vlaanderen_wind_megawatt')
-    df_elia_solar_hourly = aggregate_to_hourly(df_elia_solar, 'elia_zon_megawatt')
-    df_elia_wind_hourly = aggregate_to_hourly(df_elia_wind, 'elia_wind_megawatt')
-
-    # Get all unique timestamps
-    all_timestamps = pd.concat([
-        df_vl_solar_hourly[['timestamp']],
-        df_vl_wind_hourly[['timestamp']],
-        df_elia_solar_hourly[['timestamp']],
-        df_elia_wind_hourly[['timestamp']]
-    ]).drop_duplicates().sort_values('timestamp')
-
-    logger.info(f"Total unique hourly timestamps: {len(all_timestamps)}")
-
-    # Merge all data sources
-    df_combined = all_timestamps.copy()
-    df_combined = df_combined.merge(df_vl_solar_hourly, on='timestamp', how='left')
-    df_combined = df_combined.merge(df_vl_wind_hourly, on='timestamp', how='left')
-    df_combined = df_combined.merge(df_elia_solar_hourly, on='timestamp', how='left')
-    df_combined = df_combined.merge(df_elia_wind_hourly, on='timestamp', how='left')
-
-    # Rename timestamp column to 'tijd' (Dutch for 'time')
-    df_combined = df_combined.rename(columns={'timestamp': 'tijd'})
-
-    # Sort by time
-    df_combined = df_combined.sort_values('tijd').reset_index(drop=True)
-
-    # Count nulls before filtering
-    total_before = len(df_combined)
-    has_data = df_combined[['energie_vlaanderen_zon_megawatt', 'energie_vlaanderen_wind_megawatt',
-                             'elia_zon_megawatt', 'elia_wind_megawatt']].notna().any(axis=1)
-    df_combined = df_combined[has_data].reset_index(drop=True)
-
-    logger.info(f"Filtered out {total_before - len(df_combined)} empty rows (kept {len(df_combined)} rows with data)")
-
-    # Log summary
-    logger.info(f"Combined table: {len(df_combined)} rows")
-    logger.info(f"Columns: {list(df_combined.columns)}")
-    logger.info(f"Date range: {df_combined['tijd'].min()} to {df_combined['tijd'].max()}")
-
-    # Log data availability
-    vl_solar_count = df_combined['energie_vlaanderen_zon_megawatt'].notna().sum()
-    vl_wind_count = df_combined['energie_vlaanderen_wind_megawatt'].notna().sum()
-    elia_solar_count = df_combined['elia_zon_megawatt'].notna().sum()
-    elia_wind_count = df_combined['elia_wind_megawatt'].notna().sum()
-
-    logger.info(f"Data availability:")
-    logger.info(f"  Vlaanderen Solar: {vl_solar_count}/{len(df_combined)} rows ({100*vl_solar_count/len(df_combined):.1f}%)")
-    logger.info(f"  Vlaanderen Wind:  {vl_wind_count}/{len(df_combined)} rows ({100*vl_wind_count/len(df_combined):.1f}%)")
-    logger.info(f"  ELIA Solar:       {elia_solar_count}/{len(df_combined)} rows ({100*elia_solar_count/len(df_combined):.1f}%)")
-    logger.info(f"  ELIA Wind:        {elia_wind_count}/{len(df_combined)} rows ({100*elia_wind_count/len(df_combined):.1f}%)")
-
-    logger.info(f"Sample data:\n{df_combined.head(10)}")
-
-    # Write to database
-    df_combined.to_sql(
-        CLEAN_TABLE,
-        engine,
-        schema='clean',
-        if_exists='replace',
-        index=False
+    # --- Join all sources on timestamp --------------------------------------
+    df = (
+        df_vl_solar
+        .merge(df_vl_wind, on="datetime", how="outer")
+        .merge(df_elia_solar, on="datetime", how="outer")
+        .merge(df_elia_wind, on="datetime", how="outer")
+        .sort_values("datetime")
+        .reset_index(drop=True)
     )
 
-    logger.info(f"Successfully wrote {len(df_combined)} rows to clean.{CLEAN_TABLE}")
+    # Rename datetime → tijd and round values
+    df = df.rename(columns={"datetime": "tijd"})
+    df["vlaanderen_zon_kwh"] = pd.to_numeric(df["vlaanderen_zon_kwh"], errors="coerce").fillna(0).round(3)
+    df["vlaanderen_wind_kwh"] = pd.to_numeric(df["vlaanderen_wind_kwh"], errors="coerce").fillna(0).round(3)
+    df["elia_zon_kwh"] = pd.to_numeric(df["elia_zon_kwh"], errors="coerce").round(3)
+    df["elia_wind_kwh"] = pd.to_numeric(df["elia_wind_kwh"], errors="coerce").round(3)
+
+    df = df[["tijd", "vlaanderen_zon_kwh", "vlaanderen_wind_kwh", "elia_zon_kwh", "elia_wind_kwh"]]
+
+    logger.info("Combined table: %d rows", len(df))
+    logger.info("Date range: %s → %s", df["tijd"].min(), df["tijd"].max())
+
+    df.to_sql(CLEAN_TABLE, engine, schema="clean", if_exists="replace", index=False)
+    logger.info("Wrote %d rows → clean.%s", len(df), CLEAN_TABLE)
+
+
+def _read_elia_clean(table: str, out_col: str, engine) -> pd.DataFrame:
+    """Read an ELIA clean table, filter to Flanders, and return datetime + kWh column."""
+    df = pd.read_sql(f"SELECT * FROM clean.{table}", engine)
+
+    # Normalise timestamp column
+    ts_col = next(
+        (c for c in df.columns if any(kw in c.lower() for kw in ("datetime", "timestamp"))),
+        None,
+    )
+    if ts_col is None:
+        raise ValueError(f"No timestamp column in clean.{table}")
+
+    df[ts_col] = pd.to_datetime(df[ts_col], errors="coerce", utc=True)
+    df = df.dropna(subset=[ts_col])
+    df = df.rename(columns={ts_col: "datetime"})
+
+    # Filter to Flanders if region column exists
+    if "region" in df.columns and (df["region"] == ELIA_REGION).any():
+        df = df[df["region"] == ELIA_REGION]
+
+    # Find the value column (mostrecentforecast preferred, else measured or realtime)
+    value_col = next(
+        (c for c in ("mostrecentforecast", "measured", "realtime") if c in df.columns),
+        None,
+    )
+    if value_col is None:
+        raise ValueError(f"No value column found in clean.{table}")
+
+    df[value_col] = pd.to_numeric(df[value_col], errors="coerce")
+    df = df.dropna(subset=[value_col])
+
+    # Convert MW → kWh
+    df[out_col] = df[value_col] * 1000.0
+
+    return df[["datetime", out_col]]
