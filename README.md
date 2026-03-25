@@ -94,6 +94,7 @@ docker compose up --build
 | Service | URL |
 |---|---|
 | Airflow UI | http://localhost:8080 (admin / admin) |
+| Grafana | http://localhost:3000 (admin / admin) |
 | pgAdmin | http://localhost:5050 (admin@admin.com / admin) |
 | PostgreSQL | localhost:5332 |
 
@@ -141,6 +142,7 @@ docker compose down -v    # stop containers and delete all data
 
 - **Apache Airflow 2.8** — orchestration
 - **PostgreSQL 15** — storage
+- **Grafana** — dashboarding
 - **pgAdmin 4** — database UI
 - **Python 3.11** — ETL logic
 - **Docker Compose** — local deployment

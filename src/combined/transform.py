@@ -28,7 +28,7 @@ def transform_combined_energy() -> None:
 
     # --- Vlaanderen solar ---------------------------------------------------
     logger.info("Reading clean.clean_solar_hourly...")
-    df_vl_solar = pd.read_sql("SELECT datetime, vlaanderen_zon_mw FROM clean.clean_solar_hourly", engine)
+    df_vl_solar = pd.read_sql("SELECT datetime, vlaanderen_zon_mw FROM clean_solar_hourly", engine)
     df_vl_solar["datetime"] = pd.to_datetime(df_vl_solar["datetime"], errors="coerce", utc=True)
     df_vl_solar = df_vl_solar.dropna(subset=["datetime"])
     df_vl_solar["vlaanderen_zon_kwh"] = pd.to_numeric(df_vl_solar["vlaanderen_zon_mw"], errors="coerce") * 1000.0
@@ -37,7 +37,7 @@ def transform_combined_energy() -> None:
 
     # --- Vlaanderen wind ----------------------------------------------------
     logger.info("Reading clean.clean_wind_hourly...")
-    df_vl_wind = pd.read_sql("SELECT datetime, vlaanderen_wind_mw FROM clean.clean_wind_hourly", engine)
+    df_vl_wind = pd.read_sql("SELECT datetime, vlaanderen_wind_mw FROM clean_wind_hourly", engine)
     df_vl_wind["datetime"] = pd.to_datetime(df_vl_wind["datetime"], errors="coerce", utc=True)
     df_vl_wind = df_vl_wind.dropna(subset=["datetime"])
     df_vl_wind["vlaanderen_wind_kwh"] = pd.to_numeric(df_vl_wind["vlaanderen_wind_mw"], errors="coerce") * 1000.0
@@ -74,13 +74,13 @@ def transform_combined_energy() -> None:
     logger.info("Combined table: %d rows", len(df))
     logger.info("Date range: %s → %s", df["tijd"].min(), df["tijd"].max())
 
-    df.to_sql(CLEAN_TABLE, engine, schema="clean", if_exists="replace", index=False)
-    logger.info("Wrote %d rows → clean.%s", len(df), CLEAN_TABLE)
+    df.to_sql(CLEAN_TABLE, engine, schema="public", if_exists="replace", index=False)
+    logger.info("Wrote %d rows → %s", len(df), CLEAN_TABLE)
 
 
 def _read_elia_clean(table: str, out_col: str, engine) -> pd.DataFrame:
     """Read an ELIA clean table, filter to Flanders, and return datetime + kWh column."""
-    df = pd.read_sql(f"SELECT * FROM clean.{table}", engine)
+    df = pd.read_sql(f"SELECT * FROM {table}", engine)
 
     # Normalise timestamp column
     ts_col = next(
@@ -88,7 +88,7 @@ def _read_elia_clean(table: str, out_col: str, engine) -> pd.DataFrame:
         None,
     )
     if ts_col is None:
-        raise ValueError(f"No timestamp column in clean.{table}")
+        raise ValueError(f"No timestamp column in {table}")
 
     df[ts_col] = pd.to_datetime(df[ts_col], errors="coerce", utc=True)
     df = df.dropna(subset=[ts_col])
@@ -104,7 +104,7 @@ def _read_elia_clean(table: str, out_col: str, engine) -> pd.DataFrame:
         None,
     )
     if value_col is None:
-        raise ValueError(f"No value column found in clean.{table}")
+        raise ValueError(f"No value column found in {table}")
 
     df[value_col] = pd.to_numeric(df[value_col], errors="coerce")
     df = df.dropna(subset=[value_col])

@@ -75,9 +75,9 @@ def _transform_elia_data(raw_table: str, clean_table: str, data_type: str) -> No
         df_clean = hourly
 
     df_clean.to_sql(
-        clean_table, engine, schema="clean", if_exists="replace", index=False
+        clean_table, engine, schema="public", if_exists="replace", index=False
     )
-    logger.info("Wrote %d rows → clean.%s (%s)", len(df_clean), clean_table, data_type)
+    logger.info("Wrote %d rows → %s (%s)", len(df_clean), clean_table, data_type)
 
 
 def transform_elia_wind_to_clean() -> None:

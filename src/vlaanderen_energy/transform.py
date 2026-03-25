@@ -64,5 +64,5 @@ def _transform(raw_table: str, clean_table: str, value_col: str) -> None:
     clean = clean.sort_values("datetime").drop_duplicates(subset=["datetime"], keep="last")
     clean = clean.reset_index(drop=True)
 
-    clean.to_sql(clean_table, engine, schema="clean", if_exists="replace", index=False)
-    logger.info("Wrote %d rows → clean.%s", len(clean), clean_table)
+    clean.to_sql(clean_table, engine, schema="public", if_exists="replace", index=False)
+    logger.info("Wrote %d rows → %s", len(clean), clean_table)

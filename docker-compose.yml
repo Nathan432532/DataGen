@@ -10,6 +10,7 @@ x-airflow-common: &airflow-common
   environment: &airflow-env
     AIRFLOW__CORE__EXECUTOR: LocalExecutor
     AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: "postgresql+psycopg2://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-bank}"
+    AIRFLOW__DATABASE__SQL_ALCHEMY_SCHEMA: airflow
     AIRFLOW__CORE__LOAD_EXAMPLES: "false"
     AIRFLOW__CORE__DAGS_FOLDER: /opt/airflow/dags
     AIRFLOW__WEBSERVER__EXPOSE_CONFIG: "true"
@@ -98,6 +99,22 @@ services:
         condition: service_healthy
       airflow-init:
         condition: service_completed_successfully
+
+  # ── Grafana ───────────────────────────────────────────────
+  grafana:
+    image: grafana/grafana:latest
+    container_name: grafana
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD:-admin}
+    ports:
+      - "3000:3000"
+    networks:
+      - data-net
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
 
   # ── pgAdmin ───────────────────────────────────────────────
   pgadmin:

@@ -36,8 +36,8 @@ def transform_fluvius_to_clean() -> None:
 
     df_clean = df_clean.dropna(how="all").reset_index(drop=True)
 
-    df_clean.to_sql(CLEAN_TABLE, engine, schema="clean", if_exists="replace", index=False)
-    logger.info("Wrote %d rows → clean.%s", len(df_clean), CLEAN_TABLE)
+    df_clean.to_sql(CLEAN_TABLE, engine, schema="public", if_exists="replace", index=False)
+    logger.info("Wrote %d rows → %s", len(df_clean), CLEAN_TABLE)
 
 
 def _detect_timestamp_col(df: pd.DataFrame) -> str | None:

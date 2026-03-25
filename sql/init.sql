@@ -2,10 +2,13 @@
 -- Database initialisation — executed once on first container start
 -- =============================================================
 
+-- Airflow metadata schema
+CREATE SCHEMA IF NOT EXISTS airflow;
+GRANT ALL ON SCHEMA airflow TO PUBLIC;
+
+-- Set default search path so Airflow finds its schema
+ALTER DATABASE bank SET search_path TO airflow, public;
+
 -- Data-layer schemas
 CREATE SCHEMA IF NOT EXISTS raw;
-CREATE SCHEMA IF NOT EXISTS clean;
-
--- Grant access (default user already owns the DB, but be explicit)
-GRANT ALL ON SCHEMA raw   TO PUBLIC;
-GRANT ALL ON SCHEMA clean TO PUBLIC;
+GRANT ALL ON SCHEMA raw TO PUBLIC;
