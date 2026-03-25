@@ -133,6 +133,13 @@ WHERE tijd BETWEEN $__timeFrom() AND $__timeTo()
 ORDER BY tijd
 ```
 
+The Y axis is in kWh. Values are large because the pipeline converts MW → kWh (× 1000) and sums all municipalities across Flanders. For example, 5,000,000 = 5,000 MWh at peak solar.
+
+To get friendlier axis numbers, either:
+
+- **In the query** — divide by 1000 and label as MWh: `vlaanderen_zon_kwh / 1000 AS "Vlaanderen Solar (MWh)"`
+- **In Grafana** — Panel settings → Standard options → Unit → search `watt-hour (Wh)`, Grafana will auto-scale to kWh / MWh / GWh
+
 ### 5. Enable daily updates
 
 Unpause `combined_energy`. It runs daily, fetching that day's data from both sources and appending to the combined table.
