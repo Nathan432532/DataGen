@@ -102,7 +102,38 @@ docker compose up --build
 
 Trigger `backfill_energy` manually from the Airflow UI. This fetches all available data from 2025-03-01 to today across all sources and writes the combined output table. Run this once before enabling the daily DAG.
 
-### 4. Enable daily updates
+### 4. Set up Grafana dashboard
+
+1. Go to `http://localhost:3000` and log in (admin / admin)
+2. Add a PostgreSQL data source: **Connections → Data sources → Add → PostgreSQL**
+   - Host: `postgres:5432`
+   - Database: `bank`, User/Password: from your `.env`
+   - TLS: disabled
+3. Create a new dashboard and add two **Time series** panels:
+
+**Solar production**
+```sql
+SELECT
+  tijd AS time,
+  vlaanderen_zon_kwh AS "Vlaanderen Solar",
+  elia_zon_kwh AS "ELIA Solar"
+FROM clean_combined_energy
+WHERE tijd BETWEEN $__timeFrom() AND $__timeTo()
+ORDER BY tijd
+```
+
+**Wind production**
+```sql
+SELECT
+  tijd AS time,
+  vlaanderen_wind_kwh AS "Vlaanderen Wind",
+  elia_wind_kwh AS "ELIA Wind"
+FROM clean_combined_energy
+WHERE tijd BETWEEN $__timeFrom() AND $__timeTo()
+ORDER BY tijd
+```
+
+### 5. Enable daily updates
 
 Unpause `combined_energy`. It runs daily, fetching that day's data from both sources and appending to the combined table.
 
