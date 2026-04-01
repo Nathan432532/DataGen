@@ -95,7 +95,8 @@ docker compose up --build
 |---|---|
 | Airflow UI | http://localhost:8080 (admin / admin) |
 | Grafana | http://localhost:3000 (admin / admin) |
-| pgAdmin | http://localhost:5050 (admin@admin.com / admin) |
+| 
+ | http://localhost:5050 (admin@admin.com / admin) |
 | PostgreSQL | localhost:5332 |
 
 ### 3. Populate historical data
