@@ -1,0 +1,19 @@
+apiVersion: 1
+
+datasources:
+  - name: Pipeline Postgres
+    uid: pipeline-postgres
+    type: postgres
+    access: proxy
+    url: postgres:5432
+    user: user
+    secureJsonData:
+      password: supersecret
+    jsonData:
+      database: bank
+      sslmode: disable
+      postgresVersion: 1500
+      timescaledb: false
+      connMaxLifetime: 14400
+    isDefault: true
+    editable: true

@@ -168,6 +168,101 @@ SELECT MIN(tijd), MAX(tijd), COUNT(*) FROM clean.clean_combined_energy;
 
 ---
 
+## Local datasets showcase
+
+Use this when you need to demonstrate the pipeline in Airflow and build graphs from the CSV files in `Data/`.
+
+### Local DAGs
+
+Each CSV now has its own DAG, with the same ETL structure as the production pipelines:
+
+- `local_solar_radiation` -> `Data/sun_combined.csv`
+- `local_energy_consumption` -> `Data/consumptie.csv`
+- `local_wind_history` -> `Data/v_wind_alles_compleet.csv`
+
+Each DAG follows:
+
+`extract -> load_raw -> validate_raw -> transform_clean -> validate_clean`
+
+This gives you one separate Airflow graph per CSV instead of one combined showcase DAG.
+
+### Output tables
+
+After triggering the three local DAGs, these tables are available:
+
+- `clean.clean_local_solar_radiation`
+- `clean.clean_local_energy_consumption`
+- `clean.clean_local_wind_history`
+
+### Grafana queries
+
+Graph 1: solar radiation comparison
+
+```sql
+SELECT
+  timestamp AS time,
+  open_meteo_radiation AS "Open-Meteo",
+  kmi_radiation_avg AS "KMI",
+  kaggle_radiation_avg AS "Kaggle"
+FROM clean.clean_local_solar_radiation
+WHERE timestamp BETWEEN $__timeFrom() AND $__timeTo()
+ORDER BY timestamp;
+```
+
+Graph 2: energy dataset comparison
+
+```sql
+SELECT
+  timestamp AS time,
+  energie_vlaanderen_zon AS "Vlaanderen Solar",
+  energie_vlaanderen_wind AS "Vlaanderen Wind",
+  elia_totaal AS "ELIA Total",
+  kaggle_prive AS "Kaggle Private",
+  kaggle_openbaar AS "Kaggle Public"
+FROM clean.clean_local_energy_consumption
+WHERE timestamp BETWEEN $__timeFrom() AND $__timeTo()
+ORDER BY timestamp;
+```
+
+Graph 3: wind comparison
+
+```sql
+SELECT
+  timestamp AS time,
+  wind_ecmwf_2026 AS "ECMWF 2026",
+  wind_kmi_2002 AS "KMI 2002",
+  wind_ukkel_2024 AS "Ukkel 2024",
+  wind_antwerpen_archive AS "Antwerp Archive"
+FROM clean.clean_local_wind_history
+WHERE timestamp BETWEEN $__timeFrom() AND $__timeTo()
+ORDER BY timestamp;
+```
+
+### Short presentation script
+
+- Airflow is used for orchestration, not for plotting the dataset values.
+- Each CSV has its own DAG, so each dataset has its own pipeline graph in Airflow.
+- Every local DAG uses the same ETL structure as the production pipelines: extract, load raw, validate, transform clean, validate clean.
+- Grafana reads the final `clean` tables and visualises the time series.
+- This separation is the correct architecture: Airflow for pipeline control, PostgreSQL for storage, Grafana for analytics and graphs.
+
+### Local plotting in VS Code
+
+If you do not want to use Grafana, generate the plots directly from the CSV files:
+
+```bash
+python -m src.local_data.plot_local_datasets
+```
+
+This creates four PNG files in `plots/`:
+
+- `01_solar_radiation.png`
+- `02_energy_combined.png`
+- `03_energy_consumption_focused.png`
+- `04_wind_history.png`
+
+---
+
 ## Stopping
 
 ```bash

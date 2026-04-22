@@ -12,3 +12,6 @@ ALTER DATABASE bank SET search_path TO airflow, public;
 -- Data-layer schemas
 CREATE SCHEMA IF NOT EXISTS raw;
 GRANT ALL ON SCHEMA raw TO PUBLIC;
+
+CREATE SCHEMA IF NOT EXISTS clean;
+GRANT ALL ON SCHEMA clean TO PUBLIC;

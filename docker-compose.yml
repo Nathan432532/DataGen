@@ -26,6 +26,7 @@ x-airflow-common: &airflow-common
   volumes:
     - ./dags:/opt/airflow/dags
     - ./src:/opt/airflow/src
+    - ./Data:/opt/airflow/Data
     - airflow-logs:/opt/airflow/logs
   networks:
     - data-net
@@ -82,7 +83,7 @@ services:
     container_name: airflow-webserver
     command: airflow webserver --port 8080
     ports:
-      - "8080:8080"
+      - "8088:8080"
     depends_on:
       postgres:
         condition: service_healthy
@@ -108,7 +109,11 @@ services:
       GF_SECURITY_ADMIN_USER: ${GRAFANA_USER:-admin}
       GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD:-admin}
     ports:
-      - "3000:3000"
+      - "3003:3000"
+    volumes:
+      - ./grafana/provisioning/datasources:/etc/grafana/provisioning/datasources
+      - ./grafana/provisioning/dashboards:/etc/grafana/provisioning/dashboards
+      - ./grafana/dashboards:/etc/grafana/provisioning/dashboards-json
     networks:
       - data-net
     depends_on:

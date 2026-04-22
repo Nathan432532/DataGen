@@ -1,0 +1,118 @@
+{
+  "annotations": {"list": []},
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [],
+  "panels": [
+    {
+      "datasource": {"type": "postgres", "uid": "pipeline-postgres"},
+      "fieldConfig": {
+        "defaults": {
+          "unit": "watth",
+          "custom": {"drawStyle": "line", "lineInterpolation": "linear", "lineWidth": 2, "fillOpacity": 10, "showPoints": "never"}
+        },
+        "overrides": []
+      },
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 0},
+      "id": 1,
+      "options": {"legend": {"displayMode": "list", "placement": "bottom"}, "tooltip": {"mode": "multi", "sort": "none"}},
+      "targets": [
+        {
+          "datasource": {"type": "postgres", "uid": "pipeline-postgres"},
+          "format": "time_series",
+          "rawQuery": true,
+          "rawSql": "SELECT tijd AS \"time\", vlaanderen_zon_kwh / 1000.0 AS \"Vlaanderen Solar (MWh)\", elia_zon_kwh / 1000.0 AS \"Elia Solar (MWh)\" FROM public.clean_combined_energy WHERE tijd IS NOT NULL ORDER BY tijd;",
+          "refId": "A"
+        }
+      ],
+      "title": "Solar Production",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "postgres", "uid": "pipeline-postgres"},
+      "fieldConfig": {
+        "defaults": {
+          "unit": "watth",
+          "custom": {"drawStyle": "line", "lineInterpolation": "linear", "lineWidth": 2, "fillOpacity": 10, "showPoints": "never"}
+        },
+        "overrides": []
+      },
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 0},
+      "id": 2,
+      "options": {"legend": {"displayMode": "list", "placement": "bottom"}, "tooltip": {"mode": "multi", "sort": "none"}},
+      "targets": [
+        {
+          "datasource": {"type": "postgres", "uid": "pipeline-postgres"},
+          "format": "time_series",
+          "rawQuery": true,
+          "rawSql": "SELECT tijd AS \"time\", vlaanderen_wind_kwh / 1000.0 AS \"Vlaanderen Wind (MWh)\", elia_wind_kwh / 1000.0 AS \"Elia Wind (MWh)\" FROM public.clean_combined_energy WHERE tijd IS NOT NULL ORDER BY tijd;",
+          "refId": "A"
+        }
+      ],
+      "title": "Wind Production",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "postgres", "uid": "pipeline-postgres"},
+      "fieldConfig": {
+        "defaults": {
+          "unit": "celsius",
+          "custom": {"drawStyle": "line", "lineInterpolation": "linear", "lineWidth": 2, "fillOpacity": 8, "showPoints": "never"}
+        },
+        "overrides": []
+      },
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 8},
+      "id": 3,
+      "options": {"legend": {"displayMode": "list", "placement": "bottom"}, "tooltip": {"mode": "single", "sort": "none"}},
+      "targets": [
+        {
+          "datasource": {"type": "postgres", "uid": "pipeline-postgres"},
+          "format": "time_series",
+          "rawQuery": true,
+          "rawSql": "SELECT timestamp AS \"time\", NULLIF(temp, '')::numeric AS \"Temperature\" FROM public.clean_weather_hourly WHERE timestamp IS NOT NULL AND NULLIF(temp, '') IS NOT NULL ORDER BY timestamp;",
+          "refId": "A"
+        }
+      ],
+      "title": "Temperature",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "postgres", "uid": "pipeline-postgres"},
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "custom": {"drawStyle": "line", "lineInterpolation": "linear", "lineWidth": 2, "fillOpacity": 8, "showPoints": "never"}
+        },
+        "overrides": []
+      },
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 8},
+      "id": 4,
+      "options": {"legend": {"displayMode": "list", "placement": "bottom"}, "tooltip": {"mode": "single", "sort": "none"}},
+      "targets": [
+        {
+          "datasource": {"type": "postgres", "uid": "pipeline-postgres"},
+          "format": "time_series",
+          "rawQuery": true,
+          "rawSql": "SELECT timestamp AS \"time\", NULLIF(humidity, '')::numeric AS \"Humidity\" FROM public.clean_weather_hourly WHERE timestamp IS NOT NULL AND NULLIF(humidity, '') IS NOT NULL ORDER BY timestamp;",
+          "refId": "A"
+        }
+      ],
+      "title": "Humidity",
+      "type": "timeseries"
+    }
+  ],
+  "refresh": "30s",
+  "schemaVersion": 39,
+  "style": "dark",
+  "tags": ["energy", "postgres", "airflow"],
+  "templating": {"list": []},
+  "time": {"from": "now-90d", "to": "now"},
+  "timepicker": {},
+  "timezone": "browser",
+  "title": "Energy Pipeline Overview",
+  "uid": "energy-pipeline-overview",
+  "version": 1,
+  "weekStart": ""
+}
